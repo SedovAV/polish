@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 #include <math.h>
 
 #define MAX_EXPR_LEN 256
@@ -9,20 +8,7 @@
 #define HEIGHT 25
 #define PI 3.14159265358979323846
 
-// Структура для представления лексемы
-typedef enum {
-    LEX_TYPE_NUMBER,
-    LEX_TYPE_OPERATOR,
-    LEX_TYPE_FUNCTION,
-    LEX_TYPE_PARENTHESIS
-} LexType;
-
-typedef struct {
-    LexType type;
-    char value[32];
-} Lexeme;
-
-// Стек для алгоритма Дейкстры
+// Стек для RPN
 typedef struct StackNode {
     char data[32];
     struct StackNode* next;
@@ -39,7 +25,6 @@ void push(char* data) {
 
 char* pop() {
     if (stack == NULL) return NULL;
-
     StackNode* temp = stack;
     char* result = strdup(temp->data);
     stack = temp->next;
@@ -51,7 +36,12 @@ int is_stack_empty() {
     return stack == NULL;
 }
 
-// Определение приоритета операторов
+void clear_stack() {
+    while (!is_stack_empty()) {
+        free(pop());
+    }
+}
+
 int precedence(char op) {
     switch(op) {
         case '+':
@@ -63,68 +53,144 @@ int precedence(char op) {
     }
 }
 
-// Проверка, является ли символ оператором
 int is_operator(char c) {
-    return (c == '+' || c == '-' || c == '*' || c == '/' || c == '^');
+    return c == '+' || c == '-' || c == '*' || c == '/' || c == '^';
 }
 
-// Функция для перевода выражения в обратную польскую запись
+int format_expression(char* expr, char* formatted) {
+    int i, j = 0;
+    for (i = 0; expr[i]; i++) {
+        if (expr[i] == 'x') {
+            formatted[j++] = 'x';
+        } else if (expr[i] == '^') {
+            formatted[j++] = '^';
+        } else if (expr[i] == 's' && i + 2 < strlen(expr) &&
+                   expr[i+1] == 'i' && expr[i+2] == 'n') {
+            formatted[j++] = 's';
+            formatted[j++] = 'i';
+            formatted[j++] = 'n';
+            i += 2;
+        } else if (expr[i] == 'c' && i + 2 < strlen(expr) &&
+                   expr[i+1] == 'o' && expr[i+2] == 's') {
+            formatted[j++] = 'c';
+            formatted[j++] = 'o';
+            formatted[j++] = 's';
+            i += 2;
+        } else if (expr[i] == 't' && i + 2 < strlen(expr) &&
+                   expr[i+1] == 'a' && expr[i+2] == 'n') {
+            formatted[j++] = 't';
+            formatted[j++] = 'a';
+            formatted[j++] = 'n';
+            i += 2;
+        } else if ((expr[i] >= '0' && expr[i] <= '9') || expr[i] == '.' ||
+                  expr[i] == '+' || expr[i] == '*' || expr[i] == '/' ||
+                  expr[i] == '(' || expr[i] == ')') {
+            formatted[j++] = expr[i];
+        } else if (expr[i] == '-' && (i == 0 || expr[i-1] == '(' || is_operator(expr[i-1]))) {
+            formatted[j++] = '0';
+            formatted[j++] = '-';
+        } else {
+            return 0;
+        }
+    }
+    formatted[j] = '\0';
+    return 1;
+}
+
 int to_rpn(char* input, char* output) {
     int i, j = 0;
-    for (i = 0; input[i]; i++) {
-        if (isspace(input[i])) continue;
+    char temp[2] = {0};
 
-        if (isdigit(input[i]) || (input[i] == '-' && isdigit(input[i+1]))) {
-            while (isdigit(input[i]) || input[i] == '.' || input[i] == '-') {
+    for (i = 0; input[i]; i++) {
+        if (input[i] == ' ') continue;
+
+        if ((input[i] >= '0' && input[i] <= '9') || input[i] == '.') {
+            while ((input[i] >= '0' && input[i] <= '9') || input[i] == '.') {
                 output[j++] = input[i++];
             }
             output[j++] = ' ';
             i--;
-        } else if (is_operator(input[i])) {
-            while (!is_stack_empty() && precedence(stack->data[0]) >= precedence(input[i])) {
-                strcpy(output + j, pop());
-                j += strlen(output + j);
+        }
+        else if (input[i] == 'x') {
+            output[j++] = 'x';
+            output[j++] = ' ';
+        }
+        else if (is_operator(input[i])) {
+            while (!is_stack_empty() && precedence(stack->data[0]) >= precedence(input[i]) &&
+                   stack->data[0] != '(') {
+                char* op = pop();
+                strcpy(output + j, op);
+                j += strlen(op);
                 output[j++] = ' ';
+                free(op);
             }
-            char op[2] = {input[i], '\0'};
-            push(op);
-        } else if (input[i] == '(') {
-            char paren[2] = {input[i], '\0'};
-            push(paren);
-        } else if (input[i] == ')') {
-            while (!is_stack_empty() && stack->data[0][0] != '(') {
-                strcpy(output + j, pop());
-                j += strlen(output + j);
+            temp[0] = input[i];
+            temp[1] = '\0';
+            push(temp);
+        }
+        else if (input[i] == '(') {
+            temp[0] = '(';
+            temp[1] = '\0';
+            push(temp);
+        }
+        else if (input[i] == ')') {
+            while (!is_stack_empty() && stack->data[0] != '(') {
+                char* op = pop();
+                strcpy(output + j, op);
+                j += strlen(op);
                 output[j++] = ' ';
+                free(op);
             }
-            if (!is_stack_empty()) pop();
-        } else {
+            if (!is_stack_empty() && stack->data[0] == '(') {
+                pop();
+            }
+        }
+        else if (i + 2 < strlen(input) &&
+                 input[i] == 's' && input[i+1] == 'i' && input[i+2] == 'n') {
+            push("sin");
+            i += 2;
+        }
+        else if (i + 2 < strlen(input) &&
+                 input[i] == 'c' && input[i+1] == 'o' && input[i+2] == 's') {
+            push("cos");
+            i += 2;
+        }
+        else {
             return 0;
         }
     }
 
     while (!is_stack_empty()) {
-        strcpy(output + j, pop());
-        j += strlen(output + j);
+        char* op = pop();
+        strcpy(output + j, op);
+        j += strlen(op);
         output[j++] = ' ';
+        free(op);
     }
-    output[j-1] = '\0';
+    if (j > 0) output[j-1] = '\0';
+    else output[0] = '\0';
 
     return 1;
 }
 
-// Вычисление выражения в обратной польской записи
 double evaluate_rpn(char* rpn, double x) {
     double stack[100];
     int top = -1;
+    char* token;
+    char rpn_copy[MAX_EXPR_LEN * 2];
 
-    char* token = strtok(rpn, " ");
+    strcpy(rpn_copy, rpn);
+    token = strtok(rpn_copy, " ");
+
     while (token != NULL) {
-        if (isdigit(token[0]) || (token[0] == '-' && isdigit(token[1]))) {
-            stack[++top] = atof(token);
-        } else if (strcmp(token, "x") == 0) {
+        if (strcmp(token, "x") == 0) {
             stack[++top] = x;
-        } else if (is_operator(token[0])) {
+        }
+        else if ((token[0] >= '0' && token[0] <= '9') || token[0] == '.') {
+            stack[++top] = atof(token);
+        }
+        else if (is_operator(token[0])) {
+            if (top < 1) return NAN;
             double b = stack[top--];
             double a = stack[top--];
 
@@ -138,13 +204,18 @@ double evaluate_rpn(char* rpn, double x) {
                     break;
                 case '^': stack[++top] = pow(a, b); break;
             }
-        } else if (strcmp(token, "sin") == 0) {
+        }
+        else if (strcmp(token, "sin") == 0) {
+            if (top < 0) return NAN;
             double a = stack[top--];
             stack[++top] = sin(a);
-        } else if (strcmp(token, "cos") == 0) {
+        }
+        else if (strcmp(token, "cos") == 0) {
+            if (top < 0) return NAN;
             double a = stack[top--];
             stack[++top] = cos(a);
-        } else {
+        }
+        else {
             return NAN;
         }
 
@@ -155,38 +226,8 @@ double evaluate_rpn(char* rpn, double x) {
     return stack[top];
 }
 
-// Округление до ближайшего целого
 int round_value(double value) {
     return (int)(value + (value >= 0 ? 0.5 : -0.5));
-}
-
-// Форматирование строки выражения
-int format_expression(char* expr, char* formatted) {
-    int i, j = 0;
-    for (i = 0; expr[i]; i++) {
-        if (expr[i] == 'x') {
-            formatted[j++] = 'x';
-        } else if (expr[i] == '^') {
-            formatted[j++] = '^';
-        } else if (expr[i] == 's' && expr[i+1] == 'i' && expr[i+2] == 'n') {
-            formatted[j++] = 's';
-            formatted[j++] = 'i';
-            formatted[j++] = 'n';
-            i += 2;
-        } else if (expr[i] == 'c' && expr[i+1] == 'o' && expr[i+2] == 's') {
-            formatted[j++] = 'c';
-            formatted[j++] = 'o';
-            formatted[j++] = 's';
-            i += 2;
-        } else if (isdigit(expr[i]) || isspace(expr[i]) || is_operator(expr[i]) ||
-                  expr[i] == '(' || expr[i] == ')') {
-            formatted[j++] = expr[i];
-        } else {
-            return 0;
-        }
-    }
-    formatted[j] = '\0';
-    return 1;
 }
 
 int main() {
@@ -194,10 +235,7 @@ int main() {
     char formatted_expr[MAX_EXPR_LEN];
     char rpn_expr[MAX_EXPR_LEN * 2];
 
-    printf("Enter expression: ");
     fgets(expr, MAX_EXPR_LEN, stdin);
-
-    // Удалить символ новой строки
     expr[strcspn(expr, "\n")] = 0;
 
     // Форматирование выражения
@@ -206,41 +244,47 @@ int main() {
         return 0;
     }
 
-    // Перевод в обратную польскую запись
+    // Перевод в RPN
     if (!to_rpn(formatted_expr, rpn_expr)) {
         printf("n/a\n");
         return 0;
     }
 
-    // Вывод функции sin(x)
-    printf("Function: %s\n", expr);
-
-    // Инициализация экрана
+    // Инициализация экрана (только точки)
     char screen[HEIGHT][WIDTH];
     for (int i = 0; i < HEIGHT; i++) {
         for (int j = 0; j < WIDTH; j++) {
             screen[i][j] = '.';
         }
-        screen[i][WIDTH] = '\0';
     }
 
     // Построение графика
     for (int x_px = 0; x_px < WIDTH; x_px++) {
         double x = (4 * PI) * ((double)x_px / (WIDTH - 1));
-        double y = evaluate_rpn(rpn_expr, x);
+        char rpn_copy[MAX_EXPR_LEN * 2];
+        strcpy(rpn_copy, rpn_expr);
+        double y = evaluate_rpn(rpn_copy, x);
 
-        if (isnan(y) || y < -1 || y > 1) continue;
+        if (!isnan(y) && y >= -1.0 && y <= 1.0) {
+            // Преобразование координат:
+            // Ось Y направлена вниз, ось X направлена направо
+            // Центр координат: (0, 12) - середина левой границы
+            int y_px = round_value(12.0 + y * 12.0);
 
-        int y_px = round_value((y + 1) * (HEIGHT - 1) / 2);
-        if (y_px >= 0 && y_px < HEIGHT) {
-            screen[y_px][x_px] = '*';
+            if (y_px >= 0 && y_px < HEIGHT) {
+                screen[y_px][x_px] = '*';
+            }
         }
     }
 
     // Вывод графика
     for (int i = 0; i < HEIGHT; i++) {
-        printf("%s\n", screen[i]);
+        for (int j = 0; j < WIDTH; j++) {
+            printf("%c", screen[i][j]);
+        }
+        printf("\n");
     }
 
+    clear_stack();
     return 0;
 }
