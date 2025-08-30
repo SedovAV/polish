@@ -9,6 +9,7 @@
 #define HEIGHT 25
 #define PI 3.14159265358979323846
 
+// Структура для представления лексемы
 typedef enum {
     LEX_TYPE_NUMBER,
     LEX_TYPE_OPERATOR,
@@ -21,6 +22,7 @@ typedef struct {
     char value[32];
 } Lexeme;
 
+// Стек для алгоритма Дейкстры
 typedef struct StackNode {
     char data[32];
     struct StackNode* next;
@@ -49,6 +51,7 @@ int is_stack_empty() {
     return stack == NULL;
 }
 
+// Определение приоритета операторов
 int precedence(char op) {
     switch(op) {
         case '+':
@@ -60,10 +63,12 @@ int precedence(char op) {
     }
 }
 
+// Проверка, является ли символ оператором
 int is_operator(char c) {
     return (c == '+' || c == '-' || c == '*' || c == '/' || c == '^');
 }
 
+// Функция для перевода выражения в обратную польскую запись
 int to_rpn(char* input, char* output) {
     int i, j = 0;
     for (i = 0; input[i]; i++) {
@@ -108,6 +113,7 @@ int to_rpn(char* input, char* output) {
     return 1;
 }
 
+// Вычисление выражения в обратной польской записи
 double evaluate_rpn(char* rpn, double x) {
     double stack[100];
     int top = -1;
@@ -132,6 +138,12 @@ double evaluate_rpn(char* rpn, double x) {
                     break;
                 case '^': stack[++top] = pow(a, b); break;
             }
+        } else if (strcmp(token, "sin") == 0) {
+            double a = stack[top--];
+            stack[++top] = sin(a);
+        } else if (strcmp(token, "cos") == 0) {
+            double a = stack[top--];
+            stack[++top] = cos(a);
         } else {
             return NAN;
         }
@@ -143,10 +155,12 @@ double evaluate_rpn(char* rpn, double x) {
     return stack[top];
 }
 
+// Округление до ближайшего целого
 int round_value(double value) {
     return (int)(value + (value >= 0 ? 0.5 : -0.5));
 }
 
+// Форматирование строки выражения
 int format_expression(char* expr, char* formatted) {
     int i, j = 0;
     for (i = 0; expr[i]; i++) {
@@ -183,18 +197,25 @@ int main() {
     printf("Enter expression: ");
     fgets(expr, MAX_EXPR_LEN, stdin);
 
+    // Удалить символ новой строки
     expr[strcspn(expr, "\n")] = 0;
 
+    // Форматирование выражения
     if (!format_expression(expr, formatted_expr)) {
         printf("n/a\n");
         return 0;
     }
 
+    // Перевод в обратную польскую запись
     if (!to_rpn(formatted_expr, rpn_expr)) {
         printf("n/a\n");
         return 0;
     }
 
+    // Вывод функции sin(x)
+    printf("Function: %s\n", expr);
+
+    // Инициализация экрана
     char screen[HEIGHT][WIDTH];
     for (int i = 0; i < HEIGHT; i++) {
         for (int j = 0; j < WIDTH; j++) {
@@ -203,6 +224,7 @@ int main() {
         screen[i][WIDTH] = '\0';
     }
 
+    // Построение графика
     for (int x_px = 0; x_px < WIDTH; x_px++) {
         double x = (4 * PI) * ((double)x_px / (WIDTH - 1));
         double y = evaluate_rpn(rpn_expr, x);
@@ -215,6 +237,7 @@ int main() {
         }
     }
 
+    // Вывод графика
     for (int i = 0; i < HEIGHT; i++) {
         printf("%s\n", screen[i]);
     }
