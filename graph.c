@@ -82,6 +82,23 @@ int format_expression(char* expr, char* formatted) {
             formatted[j++] = 'a';
             formatted[j++] = 'n';
             i += 2;
+        } else if (expr[i] == 'c' && i + 2 < strlen(expr) &&
+                   expr[i+1] == 't' && expr[i+2] == 'g') {
+            formatted[j++] = 'c';
+            formatted[j++] = 't';
+            formatted[j++] = 'g';
+            i += 2;
+        } else if (expr[i] == 's' && i + 3 < strlen(expr) &&
+                   expr[i+1] == 'q' && expr[i+2] == 'r' && expr[i+3] == 't') {
+            formatted[j++] = 's';
+            formatted[j++] = 'q';
+            formatted[j++] = 'r';
+            formatted[j++] = 't';
+            i += 3;
+        } else if (expr[i] == 'l' && i + 1 < strlen(expr) && expr[i+1] == 'n') {
+            formatted[j++] = 'l';
+            formatted[j++] = 'n';
+            i += 1;
         } else if ((expr[i] >= '0' && expr[i] <= '9') || expr[i] == '.' ||
                   expr[i] == '+' || expr[i] == '*' || expr[i] == '/' ||
                   expr[i] == '(' || expr[i] == ')') {
@@ -155,6 +172,26 @@ int to_rpn(char* input, char* output) {
             push("cos");
             i += 2;
         }
+        else if (i + 2 < strlen(input) &&
+                 input[i] == 't' && input[i+1] == 'a' && input[i+2] == 'n') {
+            push("tan");
+            i += 2;
+        }
+        else if (i + 2 < strlen(input) &&
+                 input[i] == 'c' && input[i+1] == 't' && input[i+2] == 'g') {
+            push("ctg");
+            i += 2;
+        }
+        else if (i + 3 < strlen(input) &&
+                 input[i] == 's' && input[i+1] == 'q' && input[i+2] == 'r' && input[i+3] == 't') {
+            push("sqrt");
+            i += 3;
+        }
+        else if (i + 1 < strlen(input) &&
+                 input[i] == 'l' && input[i+1] == 'n') {
+            push("ln");
+            i += 1;
+        }
         else {
             return 0;
         }
@@ -214,6 +251,34 @@ double evaluate_rpn(char* rpn, double x) {
             if (top < 0) return NAN;
             double a = stack[top--];
             stack[++top] = cos(a);
+        }
+        else if (strcmp(token, "tan") == 0) {
+            if (top < 0) return NAN;
+            double a = stack[top--];
+            // Проверка на асимптоты тангенса
+            if (cos(a) == 0) return NAN;
+            stack[++top] = tan(a);
+        }
+        else if (strcmp(token, "ctg") == 0) {
+            if (top < 0) return NAN;
+            double a = stack[top--];
+            // Проверка на асимптоты котангенса
+            if (sin(a) == 0) return NAN;
+            stack[++top] = 1.0 / tan(a);
+        }
+        else if (strcmp(token, "sqrt") == 0) {
+            if (top < 0) return NAN;
+            double a = stack[top--];
+            // Проверка на отрицательное число под корнем
+            if (a < 0) return NAN;
+            stack[++top] = sqrt(a);
+        }
+        else if (strcmp(token, "ln") == 0) {
+            if (top < 0) return NAN;
+            double a = stack[top--];
+            // Проверка на неположительное число под логарифмом
+            if (a <= 0) return NAN;
+            stack[++top] = log(a);
         }
         else {
             return NAN;
